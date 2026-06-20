@@ -1,8 +1,11 @@
 import React, { useState } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, TextInput,
+  View, Text, StyleSheet, TouchableOpacity, Pressable, TextInput,
   ScrollView, Image, SafeAreaView, Alert, FlatList, ActivityIndicator,
+  Modal, Dimensions,
 } from 'react-native';
+
+const { width: SW, height: SH } = Dimensions.get('window');
 import * as ImagePicker from 'expo-image-picker';
 import { saveSketch, updateSketch } from '../store/sketchStore';
 import { TAGS } from '../constants/tags';
@@ -44,6 +47,7 @@ export default function RecordScreen({ navigation, route }) {
   const [weather, setWeather] = useState(editSketch?.weather ?? null);
   const [mood, setMood] = useState(editSketch?.mood ?? null);
   const [saving, setSaving] = useState(false);
+  const [previewUri, setPreviewUri] = useState(null);
   const [searchKeyword, setSearchKeyword] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [searching, setSearching] = useState(false);
@@ -100,6 +104,7 @@ export default function RecordScreen({ navigation, route }) {
   }
 
   return (
+  <>
     <SafeAreaView style={s.container}>
       <View style={s.header}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
@@ -127,23 +132,65 @@ export default function RecordScreen({ navigation, route }) {
       {step === 0 && (
         <ScrollView style={{ flex: 1 }} contentContainerStyle={s.body}>
           <Text style={s.desc}>오늘의 순간을 담은 사진을 추가해요.{'\n'}최대 5장까지 선택할 수 있어요.</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
-            <View style={s.photoRow}>
-              {photos.map((uri, i) => (
-                <View key={i} style={s.photoThumb}>
-                  <Image source={{ uri }} style={s.photoImg} />
-                  <TouchableOpacity style={s.photoRemove} onPress={() => setPhotos(p => p.filter((_, j) => j !== i))}>
-                    <Text style={{ color: '#fff', fontSize: 10 }}>✕</Text>
-                  </TouchableOpacity>
-                </View>
-              ))}
-              {photos.length < 5 && (
-                <TouchableOpacity style={s.photoSlot} onPress={() => addPhoto(false)}>
-                  <Text style={{ fontSize: 24, color: '#aaa' }}>+</Text>
-                </TouchableOpacity>
-              )}
-            </View>
-          </ScrollView>
+
+          {/* 1번째 사진: 전체 가로 */}
+          <View style={s.photoLayout}>
+            {photos[0] ? (
+              <Pressable style={s.photoFull} onPress={() => setPreviewUri(photos[0])}>
+                <Image source={{ uri: photos[0] }} style={s.photoImg} />
+                <Pressable style={s.photoRemove} onPress={() => setPhotos(p => p.filter((_, j) => j !== 0))}>
+                  <Text style={{ color: '#fff', fontSize: 10 }}>✕</Text>
+                </Pressable>
+                <View style={s.photoBadge}><Text style={s.photoBadgeText}>대표</Text></View>
+              </Pressable>
+            ) : (
+              <TouchableOpacity style={[s.photoFull, s.photoSlotFull]} onPress={() => addPhoto(false)}>
+                <Text style={{ fontSize: 32, color: '#ccc' }}>+</Text>
+                <Text style={{ fontSize: 12, color: '#bbb', marginTop: 4 }}>사진 추가</Text>
+              </TouchableOpacity>
+            )}
+
+            {/* 2~3번째 사진 */}
+            {(photos.length >= 1) && (
+              <View style={s.photoRow2}>
+                {[1, 2].map(i => (
+                  photos[i] ? (
+                    <Pressable key={i} style={s.photoHalf} onPress={() => setPreviewUri(photos[i])}>
+                      <Image source={{ uri: photos[i] }} style={s.photoImg} />
+                      <Pressable style={s.photoRemove} onPress={() => setPhotos(p => p.filter((_, j) => j !== i))}>
+                        <Text style={{ color: '#fff', fontSize: 10 }}>✕</Text>
+                      </Pressable>
+                    </Pressable>
+                  ) : photos.length < 5 && (
+                    <TouchableOpacity key={i} style={[s.photoHalf, s.photoSlotHalf]} onPress={() => addPhoto(false)}>
+                      <Text style={{ fontSize: 24, color: '#ccc' }}>+</Text>
+                    </TouchableOpacity>
+                  )
+                ))}
+              </View>
+            )}
+
+            {/* 4~5번째 사진 */}
+            {(photos.length >= 3) && (
+              <View style={s.photoRow2}>
+                {[3, 4].map(i => (
+                  photos[i] ? (
+                    <Pressable key={i} style={s.photoHalf} onPress={() => setPreviewUri(photos[i])}>
+                      <Image source={{ uri: photos[i] }} style={s.photoImg} />
+                      <Pressable style={s.photoRemove} onPress={() => setPhotos(p => p.filter((_, j) => j !== i))}>
+                        <Text style={{ color: '#fff', fontSize: 10 }}>✕</Text>
+                      </Pressable>
+                    </Pressable>
+                  ) : photos.length < 5 && i === photos.length && (
+                    <TouchableOpacity key={i} style={[s.photoHalf, s.photoSlotHalf]} onPress={() => addPhoto(false)}>
+                      <Text style={{ fontSize: 24, color: '#ccc' }}>+</Text>
+                    </TouchableOpacity>
+                  )
+                ))}
+              </View>
+            )}
+          </View>
+
           <View style={s.photoActions}>
             <TouchableOpacity style={s.photoAction} onPress={() => addPhoto(true)}>
               <Text style={s.photoActionIcon}>📷</Text>
@@ -155,7 +202,7 @@ export default function RecordScreen({ navigation, route }) {
               <Text style={s.photoActionLabel}>갤러리</Text>
             </TouchableOpacity>
           </View>
-          <Text style={s.hint}>대표 사진은 첫 번째 사진으로 설정돼요</Text>
+          <Text style={s.hint}>사진을 탭하면 크게 볼 수 있어요</Text>
         </ScrollView>
       )}
 
@@ -304,7 +351,19 @@ export default function RecordScreen({ navigation, route }) {
           </Text>
         </TouchableOpacity>
       </View>
+
     </SafeAreaView>
+    {previewUri && (
+      <Modal transparent animationType="fade" onRequestClose={() => setPreviewUri(null)}>
+        <Pressable style={s.previewOverlay} onPress={() => setPreviewUri(null)}>
+          <Image source={{ uri: previewUri }} style={s.previewImg} resizeMode="contain" />
+          <View style={s.previewClose}>
+            <Text style={s.previewCloseText}>✕</Text>
+          </View>
+        </Pressable>
+      </Modal>
+    )}
+  </>
   );
 }
 
@@ -323,9 +382,18 @@ const s = StyleSheet.create({
   body: { padding: 16, paddingBottom: 32 },
   desc: { fontSize: 13, color: '#666', lineHeight: 20, marginBottom: 14 },
   photoRow: { flexDirection: 'row', gap: 8, paddingHorizontal: 16 },
-  photoThumb: { width: 80, height: 80, borderRadius: 10, overflow: 'hidden', position: 'relative' },
+  photoGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 },
+  photoThumb: { width: 90, height: 90, borderRadius: 10, overflow: 'hidden' },
+  photoLayout: { marginBottom: 16, gap: 6 },
+  photoFull: { width: '100%', height: 200, borderRadius: 12, overflow: 'hidden' },
+  photoSlotFull: { backgroundColor: '#f5f5f5', borderWidth: 1, borderStyle: 'dashed', borderColor: '#ccc', alignItems: 'center', justifyContent: 'center' },
+  photoRow2: { flexDirection: 'row', gap: 6 },
+  photoHalf: { flex: 1, height: 130, borderRadius: 12, overflow: 'hidden' },
+  photoSlotHalf: { backgroundColor: '#f5f5f5', borderWidth: 1, borderStyle: 'dashed', borderColor: '#ccc', alignItems: 'center', justifyContent: 'center' },
+  photoBadge: { position: 'absolute', bottom: 8, left: 8, backgroundColor: 'rgba(15,110,86,0.85)', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 },
+  photoBadgeText: { color: '#fff', fontSize: 10, fontWeight: '600' },
   photoImg: { width: '100%', height: '100%' },
-  photoRemove: { position: 'absolute', top: 4, right: 4, backgroundColor: 'rgba(0,0,0,0.4)', borderRadius: 9, width: 18, height: 18, alignItems: 'center', justifyContent: 'center' },
+  photoRemove: { position: 'absolute', top: 6, right: 6, backgroundColor: 'rgba(0,0,0,0.45)', borderRadius: 11, width: 22, height: 22, alignItems: 'center', justifyContent: 'center' },
   photoSlot: { width: 80, height: 80, borderRadius: 10, borderWidth: 1, borderStyle: 'dashed', borderColor: '#ccc', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f8f8f8' },
   photoActions: { flexDirection: 'row', backgroundColor: '#f5f5f5', borderRadius: 10, padding: 14, marginBottom: 8, marginHorizontal: 16 },
   photoAction: { flex: 1, alignItems: 'center', gap: 6 },
@@ -372,4 +440,8 @@ const s = StyleSheet.create({
   prevBtnText: { fontSize: 13, color: '#666' },
   nextBtn: { flex: 2, padding: 14, borderRadius: 12, backgroundColor: '#0F6E56', alignItems: 'center' },
   nextBtnText: { fontSize: 13, fontWeight: '600', color: '#fff' },
+  previewOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.92)', alignItems: 'center', justifyContent: 'center' },
+  previewImg: { width: SW, height: SH * 0.82 },
+  previewClose: { position: 'absolute', top: 56, right: 20, width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' },
+  previewCloseText: { color: '#fff', fontSize: 16 },
 });
